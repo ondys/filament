@@ -110,6 +110,10 @@ struct ResourceNode { // 24
     PassNode* writer = nullptr;     // writer to this node
     uint32_t readerCount = 0;       // # of passes reading from this resource
 
+    // updated by builder
+    static constexpr uint16_t UNINITIALIZED = std::numeric_limits<uint16_t>::max();
+    uint16_t renderTargetIndex = UNINITIALIZED;      // used to retrieve the RT infos
+
     // constants
     const uint8_t version;          // version of the resource when the node was created
 };
@@ -397,13 +401,6 @@ struct PassNode { // 200
         return r;
     }
 
-    FrameGraphResource useRenderTarget(FrameGraph& fg, FrameGraphResource handle) {
-        // using a resource as a RT implies reading (i.e. adds a reference to that resource) from it
-        handle = read(fg, handle, true);
-        // using a resource as a RT implies writing (i.e. adds a reference to the pass) into it
-        return write(fg, handle);
-    }
-
     // constants
     const char* const name;                             // our name
     const uint32_t id;                                  // a unique id (only for debugging)
@@ -506,13 +503,18 @@ FrameGraph::Builder::Attachments FrameGraph::Builder::useRenderTarget(const char
     for (FrameGraphResource const& attachment : desc.attachments.textures) {
         const size_t index = &attachment - desc.attachments.textures.data();
         if (attachment.isValid()) {
+            // using a resource as a RT implies reading (i.e. adds a reference to that resource) from it
+            rt.textures[index] = mPass.read(fg, attachment, true);
+            // using a resource as a RT implies writing (i.e. adds a reference to the pass) into it
+            rt.textures[index] = mPass.write(fg, rt.textures[index]);
 
-            ResourceNode& node = fg.getResource(attachment);
+            ResourceNode& node = fg.getResource(rt.textures[index]);
             uint8_t usage = node.resource->usage;
             usage |= usages[index];
             node.resource->usage = TextureUsage(usage);
 
-            rt.textures[index] = mPass.useRenderTarget(fg, attachment);
+            // renderTargetIndex is used to retrieve the Descriptor
+            node.renderTargetIndex = renderTarget.index;
         }
     }
     return rt;
@@ -520,13 +522,14 @@ FrameGraph::Builder::Attachments FrameGraph::Builder::useRenderTarget(const char
 
 FrameGraph::Builder::Attachments FrameGraph::Builder::useRenderTarget(
         FrameGraphResource texture, TargetBufferFlags clearFlags) noexcept {
+    uint8_t samples = 1;
+    if (isAttachment(texture)) {
+        samples = getRenderTargetDescriptor(texture).samples;
+    }
     ResourceNode& resourceNode = mFrameGraph.getResource(texture);
     Resource* pResource = resourceNode.resource;
     assert(pResource);
-    FrameGraphRenderTarget::Descriptor desc {
-        .attachments.color = texture,
-        .samples = 1
-    };
+    FrameGraphRenderTarget::Descriptor desc { .attachments.color = texture, .samples = samples };
     return useRenderTarget(pResource->name, desc, clearFlags);
 }
 
@@ -545,6 +548,21 @@ FrameGraphResource FrameGraph::Builder::write(FrameGraphResource const& output) 
 FrameGraph::Builder& FrameGraph::Builder::sideEffect() noexcept {
     mPass.hasSideEffect = true;
     return *this;
+}
+
+bool FrameGraph::Builder::isAttachment(FrameGraphResource resource) const noexcept {
+    ResourceNode& node = mFrameGraph.getResource(resource);
+    return node.renderTargetIndex != ResourceNode::UNINITIALIZED;
+}
+
+FrameGraphRenderTarget::Descriptor const&
+FrameGraph::Builder::getRenderTargetDescriptor(FrameGraphResource attachment) const {
+    FrameGraph& fg = mFrameGraph;
+    ResourceNode& node = fg.getResource(attachment);
+    ASSERT_POSTCONDITION(node.renderTargetIndex != ResourceNode::UNINITIALIZED,
+            "Resource \"%s\" isn't a render target attachment", node.resource->name);
+    assert(node.renderTargetIndex < fg.mRenderTargets.size());
+    return fg.mRenderTargets[node.renderTargetIndex].desc;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -725,6 +743,10 @@ bool FrameGraph::equals(FrameGraphRenderTarget::Descriptor const& lhs,
                         // they also match if they're the same concrete resource
                         return true;
                     }
+                }
+                if (!rhs.isValid()) {
+                    // it's okay if the cached RT has more attachments than we require
+                    return true;
                 }
                 return false;
             }) && lhs.samples == rhs.samples;
