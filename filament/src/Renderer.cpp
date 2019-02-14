@@ -214,9 +214,9 @@ void FRenderer::renderJob(ArenaScope& arena, FView& view) {
     const uint8_t useMSAA = view.getSampleCount();
 
     // FIXME: we use "hasPostProcess" as a proxy for deciding if we need a depth-buffer or not
-    // FIXME: historically this has been true, but it's definitely wrong.
-    // FIXME: This hack is needed because viewRenderTarget(output) doesn't have a depth-buffer,
-    // FIXME: so when skipping post-process (which draws directly into it), we can't rely on it.
+    //        historically this has been true, but it's definitely wrong.
+    //        This hack is needed because viewRenderTarget(output) doesn't have a depth-buffer,
+    //        so when skipping post-process (which draws directly into it), we can't rely on it.
     const bool colorPassNeedsDepthBuffer = hasPostProcess;
 
     const Handle<HwRenderTarget> viewRenderTarget = getRenderTarget();

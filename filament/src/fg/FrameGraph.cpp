@@ -43,13 +43,6 @@ struct Alias { //4
     FrameGraphResource from, to;
 };
 
-struct TargetFlags {
-    uint8_t clear = 0;              // this is provided by the user -- it overides discardStart
-    uint8_t discardStart = 0;       // calculated in compile()
-    uint8_t discardEnd = 0;         // calculated in compile()
-    uint8_t dependencies = 0;       // currently ignored
-};
-
 struct VirtualResource {
     VirtualResource() noexcept = default;
     VirtualResource(VirtualResource const&) = default;
@@ -206,10 +199,10 @@ struct RenderTarget { // 32
 
     // set by builder
     FrameGraphRenderTarget::Descriptor desc;
-    TargetFlags userTargetFlags{};
+    RenderPassFlags userTargetFlags{};
 
     // set in compile
-    TargetFlags targetFlags{};
+    RenderPassFlags targetFlags{};
     RenderTargetResource* cache = nullptr;
 
     void resolve(FrameGraph& fg) noexcept {
