@@ -19,7 +19,6 @@
 
 #include "upcast.h"
 #include "PostProcessManager.h"
-#include "RenderTargetPool.h"
 
 #include "components/CameraManager.h"
 #include "components/LightManager.h"
@@ -167,14 +166,6 @@ public:
         return mPostProcessManager;
     }
 
-    RenderTargetPool const& getRenderTargetPool() const noexcept {
-        return mRenderTargetPool;
-    }
-
-    RenderTargetPool& getRenderTargetPool() noexcept {
-        return mRenderTargetPool;
-    }
-
     FRenderableManager& getRenderableManager() noexcept {
         return mRenderableManager;
     }
@@ -300,7 +291,6 @@ private:
     FIndexBuffer* mFullScreenTriangleIb = nullptr;
 
     PostProcessManager mPostProcessManager;
-    RenderTargetPool mRenderTargetPool;
 
     utils::EntityManager& mEntityManager;
     FRenderableManager mRenderableManager;
