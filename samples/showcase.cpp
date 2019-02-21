@@ -142,7 +142,6 @@ int main(int argc, char** argv) {
     }
 
     auto setup = [&app, filename](Engine* engine, View* view, Scene* scene) {
-        FilamentApp::get().getIBL()->getIndirectLight()->setIntensity(100000);
         app.loader = AssetLoader::create(engine);
         if (filename.isEmpty()) {
             return;
@@ -187,7 +186,7 @@ int main(int argc, char** argv) {
 
         // Load external textures and buffers.
         utils::Path assetFolder = filename.getParent();
-        gltfio::ResourceLoader(engine, assetFolder.c_str()).loadResources(app.asset);
+        gltfio::ResourceLoader({engine, assetFolder, true}).loadResources(app.asset);
 
         // Load animation data then free the source hierarchy.
         app.animator = app.asset->createAnimator();

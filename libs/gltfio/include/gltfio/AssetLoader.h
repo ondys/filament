@@ -52,7 +52,7 @@ namespace gltfio {
  * content.clear();
  *
  * // Load buffer data and textures from disk.
- * ResourceLoader(engine, ".").loadResources(asset);
+ * ResourceLoader({engine, ".", true}).loadResources(asset);
  *
  * // Create the simple animation engine.
  * Animator* animator = asset->createAnimator();

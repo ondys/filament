@@ -21,6 +21,8 @@
 
 #include <utils/Path.h>
 
+struct cgltf_accessor;
+
 namespace filament {
     class Engine;
 }
@@ -29,9 +31,14 @@ namespace gltfio {
 
 namespace details {
     class FFilamentAsset;
+    class AssetPool;
 }
 
-class BlobCache;
+struct ResourceConfiguration {
+    class filament::Engine* engine;
+    utils::Path basePath;
+    bool normalizeSkinningWeights;
+};
 
 /**
  * ResourceLoader asynchronously uploads vertex buffers and textures to the GPU and computes
@@ -48,18 +55,18 @@ class BlobCache;
  * listens to BufferDescriptor callbacks in order to determine when to free CPU-side data blobs.
  *
  * TODO: the GPU upload is asynchronous but the load-from-disk and image decode is not.
- * TODO: using this class is required for proper tangent quaternions, ideally it would be optional.
  */
 class ResourceLoader {
 public:
-    ResourceLoader(filament::Engine* engine, const char* basePath);
+    ResourceLoader(const ResourceConfiguration& config);
     ~ResourceLoader();
     bool loadResources(FilamentAsset* asset);
 private:
-    void computeTangents(const details::FFilamentAsset* asset);
-    BlobCache* mCache;
-    filament::Engine* mEngine;
-    utils::Path mBasePath;
+    void computeTangents(const details::FFilamentAsset* asset) const;
+    bool createTextures(const details::FFilamentAsset* asset) const;
+    void normalizeWeights(cgltf_accessor* data) const;
+    details::AssetPool* mPool;
+    const ResourceConfiguration mConfig;
 };
 
 } // namespace gltfio

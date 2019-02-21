@@ -1,29 +1,18 @@
 cmake_minimum_required(VERSION 3.1)
-project(gltfio)
+project(geometry)
 
-set(TARGET gltfio)
+set(TARGET geometry)
 set(PUBLIC_HDR_DIR include)
 
 # ==================================================================================================
 # Sources and headers
 # ==================================================================================================
 set(PUBLIC_HDRS
-        include/gltfio/Animator.h
-        include/gltfio/AssetLoader.h
-        include/gltfio/ResourceLoader.h
-        include/gltfio/FilamentAsset.h
+        include/geometry/SurfaceOrientation.h
 )
 
 set(SRCS
-        src/Animator.cpp
-        src/AssetLoader.cpp
-        src/ResourceLoader.cpp
-        src/FFilamentAsset.h
-        src/FilamentAsset.cpp
-        src/GltfEnums.h
-        src/MaterialGenerator.cpp
-        src/MaterialGenerator.h
-        src/upcast.h
+        src/SurfaceOrientation.cpp
 )
 
 # ==================================================================================================
@@ -33,7 +22,7 @@ include_directories(${PUBLIC_HDR_DIR})
 
 add_library(${TARGET} STATIC ${PUBLIC_HDRS} ${SRCS})
 
-target_link_libraries(${TARGET} PUBLIC math utils filamat filament cgltf stb geometry)
+target_link_libraries(${TARGET} PUBLIC math utils)
 
 target_include_directories(${TARGET} PUBLIC ${PUBLIC_HDR_DIR})
 
@@ -52,4 +41,4 @@ endif()
 # Installation
 # ==================================================================================================
 install(TARGETS ${TARGET} ARCHIVE DESTINATION lib/${DIST_DIR})
-install(DIRECTORY ${PUBLIC_HDR_DIR}/gltfio DESTINATION include)
+install(DIRECTORY ${PUBLIC_HDR_DIR}/geometry DESTINATION include)

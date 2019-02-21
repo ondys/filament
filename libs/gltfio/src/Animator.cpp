@@ -31,8 +31,6 @@
 #include <math/vec3.h>
 #include <math/vec4.h>
 
-#include <tsl/robin_map.h>
-
 #include <map>
 #include <string>
 #include <vector>
@@ -48,7 +46,6 @@ using namespace details;
 
 using TimeValues = std::map<float, size_t>;
 using SourceValues = std::vector<float>;
-using UrlMap = tsl::robin_map<std::string, const uint8_t*>;
 
 struct Sampler {
     TimeValues times;
@@ -125,10 +122,10 @@ static void convert32F(const cgltf_accessor* src, const uint8_t* srcBlob, Source
     memcpy(dst.data(), srcBlob, dst.size() * sizeof(float));
 }
 
-static void createSampler(const cgltf_animation_sampler& src, Sampler& dst, const UrlMap& blobs) {
+static void createSampler(const cgltf_animation_sampler& src, Sampler& dst) {
     // Copy the time values into a red-black tree.
     const cgltf_accessor* timelineAccessor = src.input;
-    const uint8_t* timelineBlob = blobs.at(timelineAccessor->buffer_view->buffer->uri);
+    const uint8_t* timelineBlob = (const uint8_t*) timelineAccessor->buffer_view->buffer->data;
     const float* timelineFloats = (const float*) (timelineBlob + timelineAccessor->offset +
             timelineAccessor->buffer_view->offset);
     for (size_t i = 0, len = timelineAccessor->count; i < len; ++i) {
@@ -137,7 +134,7 @@ static void createSampler(const cgltf_animation_sampler& src, Sampler& dst, cons
 
     // Convert source data to float.
     const cgltf_accessor* valuesAccessor = src.output;
-    const uint8_t* valuesBlob = blobs.at(valuesAccessor->buffer_view->buffer->uri);
+    const uint8_t* valuesBlob = (const uint8_t*) valuesAccessor->buffer_view->buffer->data;
     switch (valuesAccessor->component_type) {
         case cgltf_component_type_r_8:
             convert8(valuesAccessor, valuesBlob, dst.values);
@@ -196,16 +193,6 @@ Animator::Animator(FilamentAsset* publicAsset) {
     mImpl->renderableManager = &asset->mEngine->getRenderableManager();
     mImpl->transformManager = &asset->mEngine->getTransformManager();
 
-    // Build a map of URI strings to blob pointers. TODO: can the key be const char* ?
-    UrlMap blobs;
-    const BufferBinding* bindings = asset->getBufferBindings();
-    for (size_t i = 0, n = asset->getBufferBindingCount(); i < n; ++i) {
-        auto bb = bindings[i];
-        if (bb.animationBuffer) {
-            blobs[bb.uri] = bb.animationBuffer;
-        }
-    }
-
     // Loop over the glTF animation definitions.
     const cgltf_data* srcAsset = asset->mSourceAsset;
     const cgltf_animation* srcAnims = srcAsset->animations;
@@ -224,7 +211,7 @@ Animator::Animator(FilamentAsset* publicAsset) {
         for (cgltf_size j = 0, nsamps = srcAnim.samplers_count; j < nsamps; ++j) {
             const cgltf_animation_sampler& srcSampler = srcSamplers[j];
             Sampler& dstSampler = dstAnim.samplers[j];
-            createSampler(srcSampler, dstSampler, blobs);
+            createSampler(srcSampler, dstSampler);
             if (dstSampler.times.size() > 1) {
                 float maxtime = (--dstSampler.times.end())->first;
                 dstAnim.duration = std::max(dstAnim.duration, maxtime);
@@ -262,6 +249,10 @@ void Animator::applyAnimation(size_t animationIndex, float time) const {
         if (sampler->times.size() < 2) {
             continue;
         }
+
+        int cindex = &channel - &anim.channels.front();
+        int sindex = sampler - &anim.samplers.front();
+
         TransformManager::Instance node = channel.targetInstance;
         const TimeValues& times = sampler->times;
 
@@ -290,30 +281,37 @@ void Animator::applyAnimation(size_t animationIndex, float time) const {
         }
         float t = interval == 0 ? 0.0f : ((time - prevTime) / interval);
 
-        // Perform the interpolation.
-        // TODO: honor channel.transformType and support STEP / CUBIC interpolation
+        // Perform the interpolation. This is a simple but inefficient implementation; Filament
+        // stores transforms as mat4's but glTF animation is based on TRS (translation rotation
+        // scale). TODO: honor channel.transformType and support STEP / CUBIC interpolation
         size_t prevIndex = prevIter->second;
         size_t nextIndex = nextIter->second;
-        mat4f xform;
-        const float3* srcVec3 = (const float3*) &sampler->values[0];
-        const quatf* srcQuat = (const quatf*) &sampler->values[0];
+
+        mat4f xform = mImpl->transformManager->getTransform(channel.targetInstance);
+        float3 scale;
+        quatf rotation;
+        float3 translation;
+        xform.decompose(&translation, &rotation, &scale);
+
         switch (channel.transformType) {
             case Channel::SCALE: {
-                float3 result = ((1 - t) * srcVec3[prevIndex]) + (t * srcVec3[nextIndex]);
-                xform = mat4f::scale(result);
+                const float3* srcVec3 = (const float3*) sampler->values.data();
+                scale = ((1 - t) * srcVec3[prevIndex]) + (t * srcVec3[nextIndex]);
                 break;
             }
             case Channel::TRANSLATION: {
-                float3 result = ((1 - t) * srcVec3[prevIndex]) + (t * srcVec3[nextIndex]);
-                xform = mat4f::translate(result);
+                const float3* srcVec3 = (const float3*) sampler->values.data();
+                translation = ((1 - t) * srcVec3[prevIndex]) + (t * srcVec3[nextIndex]);
                 break;
             }
             case Channel::ROTATION: {
-                quatf result = slerp(srcQuat[prevIndex], srcQuat[nextIndex], t);
-                xform = mat4f(result);
+                const quatf* srcQuat = (const quatf*) sampler->values.data();
+                rotation = slerp(srcQuat[prevIndex], srcQuat[nextIndex], t);
                 break;
             }
         }
+
+        xform = mat4f::compose(translation, rotation, scale);
         mImpl->transformManager->setTransform(channel.targetInstance, xform);
     }
 }
@@ -321,19 +319,30 @@ void Animator::applyAnimation(size_t animationIndex, float time) const {
 void Animator::updateBoneMatrices() {
     vector<mat4f> boneMatrices;
     FFilamentAsset* asset = mImpl->asset;
+    auto renderableManager = mImpl->renderableManager;
+    auto transformManager = mImpl->transformManager;
     for (const auto& skin : asset->mSkins) {
-        boneMatrices.resize(skin.joints.size());
-        size_t boneIndex = 0;
-        for (const auto& joint : skin.joints) {
-            // TODO: honor skin.skeleton, implies adding getAncestorTransform to TransformManager
-            boneMatrices[boneIndex++] = mImpl->transformManager->getWorldTransform(joint);
-        }
-        boneIndex = 0;
-        for (auto m : skin.inverseBindMatrices) {
-            boneMatrices[boneIndex++] *= m;
-        }
-        for (const auto& target : skin.targets) {
-            mImpl->renderableManager->setBones(target, boneMatrices.data(), boneMatrices.size());
+        size_t njoints = skin.joints.size();
+        boneMatrices.resize(njoints);
+        for (const auto& entity : skin.targets) {
+            auto renderable = renderableManager->getInstance(entity);
+            if (!renderable) {
+                continue;
+            }
+            mat4f inverseGlobalTransform;
+            auto xformable = transformManager->getInstance(entity);
+            if (xformable) {
+                inverseGlobalTransform = inverse(transformManager->getWorldTransform(xformable));
+            }
+            for (size_t boneIndex = 0; boneIndex < njoints; ++boneIndex) {
+                const auto& jointInstance = skin.joints[boneIndex];
+                mat4f globalJointTransform = transformManager->getWorldTransform(jointInstance);
+                boneMatrices[boneIndex] =
+                        inverseGlobalTransform *
+                        globalJointTransform *
+                        skin.inverseBindMatrices[boneIndex];
+            }
+            renderableManager->setBones(renderable, boneMatrices.data(), boneMatrices.size());
         }
     }
 }
