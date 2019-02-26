@@ -36,6 +36,8 @@
 
 #include <getopt/getopt.h>
 
+#include <imgui.h>
+
 #include <fstream>
 #include <iostream>
 
@@ -48,12 +50,16 @@ using namespace gltfio;
 using namespace math;
 using namespace utils;
 
+#define SIDEBAR_WIDTH 300
+
 struct App {
     Config config;
     AssetLoader* loader;
     FilamentAsset* asset;
     Animator* animator;
     bool shadowPlane = false;
+    float iblIntensity = 30000.0f;
+    float iblRotation = 0.0f;
 };
 
 static const char* DEFAULT_IBL = "envs/venetian_crossroads";
@@ -203,16 +209,32 @@ int main(int argc, char** argv) {
         AssetLoader::destroy(&app.loader);
     };
 
-    auto animate = [&app](Engine* engine, View*, double now) {
+    auto animate = [&app](Engine* engine, View* view, double now) {
         if (app.animator->getAnimationCount() > 0) {
             app.animator->applyAnimation(0, now);
         }
         app.animator->updateBoneMatrices();
     };
 
+    auto gui = [&app](filament::Engine* engine, filament::View* view) {
+        ImGui::GetStyle().WindowRounding = 0;
+        ImGui::SetNextWindowPos(ImVec2(0, 0));
+        ImGui::SetNextWindowSize(ImVec2(SIDEBAR_WIDTH, ImGui::GetIO().DisplaySize.y));
+        ImGui::Begin("Filament", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize);
+        if (ImGui::CollapsingHeader("Light")) {
+            ImGui::SliderFloat("ibl", &app.iblIntensity, 0.0f, 50000.0f);
+            ImGui::SliderAngle("ibl rotation", &app.iblRotation);
+        }
+        ImGui::End();
+        auto ibl = FilamentApp::get().getIBL()->getIndirectLight();
+        ibl->setIntensity(app.iblIntensity);
+        ibl->setRotation(mat3f::rotate(app.iblRotation, float3{ 0, 1, 0 }));
+    };
+
     FilamentApp& filamentApp = FilamentApp::get();
+    filamentApp.enableSidebar(SIDEBAR_WIDTH);
     filamentApp.animate(animate);
-    filamentApp.run(app.config, setup, cleanup);
+    filamentApp.run(app.config, setup, cleanup, gui);
 
     return 0;
 }

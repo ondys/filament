@@ -605,10 +605,11 @@ void FilamentApp::Window::configureCamerasForWindow() {
 
     const float3 at(0, 0, -4);
     const double ratio = double(h) / double(w);
+    const int sidebar = mFilamentApp->mSidebarWidth;
 
     double near = 0.1;
     double far = 50;
-    mMainCamera->setProjection(45.0, double(w) / h, near, far, Camera::Fov::VERTICAL);
+    mMainCamera->setProjection(45.0, double(w - sidebar) / h, near, far, Camera::Fov::VERTICAL);
     mDebugCamera->setProjection(45.0, double(w) / h, 0.0625, 4096, Camera::Fov::VERTICAL);
     mOrthoCamera->setProjection(Camera::Projection::ORTHO, -3, 3, -3 * ratio, 3 * ratio, near, far);
     mOrthoCamera->lookAt(at + float3{ 4, 0, 0 }, at);
@@ -631,7 +632,7 @@ void FilamentApp::Window::configureCamerasForWindow() {
         mGodView->getCameraManipulator()->updateCameraTransform();
         mOrthoView->getCameraManipulator()->updateCameraTransform();
     } else {
-        mMainView->setViewport({ 0, 0, w, h });
+        mMainView->setViewport({ sidebar, 0, w - sidebar, h });
     }
     mUiView->setViewport({ 0, 0, w, h });
 }
