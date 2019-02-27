@@ -54,7 +54,7 @@ namespace gltfio {
  * // Load buffer data and textures from disk.
  * ResourceLoader({engine, ".", true}).loadResources(asset);
  *
- * // Create the simple animation engine.
+ * // Create the simple animation engine (owned by the asset).
  * Animator* animator = asset->createAnimator();
  *
  * // Free the glTF hierarchy as it is no longer needed.

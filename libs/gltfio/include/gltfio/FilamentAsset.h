@@ -42,11 +42,10 @@ class Animator;
  *
  * This class holds strong references to entities (renderables and transforms) that have been loaded
  * from a glTF asset, as well as strong references to VertexBuffer, IndexBuffer, MaterialInstance,
- * and, optionally, an animation engine.
+ * and, optionally, a simple animation engine.
  *
- * Clients must iterate over texture uri's and create Texture objects, unless the asset was loaded
- * from a GLB file. Clients should also iterate over buffer uri's and call VertexBuffer::setBufferAt
- * and IndexBuffer::setBuffer as needed. See ResourceLoader to simplify this process.
+ * Clients must use ResourceLoader to create Texture objects, compute tangent quaternions, and
+ * upload data into vertex buffers and index buffers.
  *
  * TODO: This supports skinning but not morphing.
  * TODO: Only the default glTF scene is loaded, other glTF scenes are ignored.
