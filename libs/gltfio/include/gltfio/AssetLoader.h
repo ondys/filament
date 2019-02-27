@@ -55,7 +55,7 @@ namespace gltfio {
  * ResourceLoader({engine, ".", true}).loadResources(asset);
  *
  * // Create the simple animation engine (owned by the asset).
- * Animator* animator = asset->createAnimator();
+ * Animator* animator = asset->getAnimator();
  *
  * // Free the glTF hierarchy as it is no longer needed.
  * asset->releaseSourceData();

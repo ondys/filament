@@ -197,7 +197,7 @@ int main(int argc, char** argv) {
         gltfio::ResourceLoader({engine, assetFolder, true}).loadResources(app.asset);
 
         // Load animation data then free the source hierarchy.
-        app.animator = app.asset->createAnimator();
+        app.animator = app.asset->getAnimator();
         app.asset->releaseSourceData();
 
         // Add renderables. This also adds transform-only entities that get ignored.

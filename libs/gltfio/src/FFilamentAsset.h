@@ -105,7 +105,7 @@ struct FFilamentAsset : public FilamentAsset {
         return mBoundingBox;
     }
 
-    Animator* createAnimator() noexcept {
+    Animator* getAnimator() noexcept {
         if (!mAnimator) {
             mAnimator = new Animator(this);
         }

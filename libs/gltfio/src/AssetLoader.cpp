@@ -82,7 +82,7 @@ static uint32_t computeBindingSize(const cgltf_accessor* accessor){
 };
 
 static uint32_t computeBindingOffset(const cgltf_accessor* accessor) {
-    return uint32_t(accessor->offset + accessor->buffer_view->size);
+    return uint32_t(accessor->offset + accessor->buffer_view->offset);
 };
 
 struct FAssetLoader : public AssetLoader {
@@ -336,7 +336,7 @@ bool FAssetLoader::createPrimitive(const cgltf_primitive* inPrim, Primitive* out
         const UvMap& uvmap) {
     const cgltf_accessor* indicesAccessor = inPrim->indices;
     if (!indicesAccessor) {
-        // TODO: generate a trivial index buffer to be spec-compliant
+        // TODO: generate BufferBinding with generateTrivialIndices = true
         slog.e << "Non-indexed geometry is not yet supported." << io::endl;
         return false;
     }
@@ -351,10 +351,6 @@ bool FAssetLoader::createPrimitive(const cgltf_primitive* inPrim, Primitive* out
     }
     ibb.bufferType(indexType);
 
-    auto computeBindingOffset = [](const cgltf_accessor* accessor){
-        return uint32_t(accessor->offset + accessor->buffer_view->offset);
-    };
-
     IndexBuffer* indices = ibb.build(*mEngine);
 
     // TODO: support sparse accessors.
@@ -367,17 +363,20 @@ bool FAssetLoader::createPrimitive(const cgltf_primitive* inPrim, Primitive* out
     mResult->mBufferBindings.emplace_back(BufferBinding {
         .uri = bv->buffer->uri,
         .totalSize = (uint32_t) bv->buffer->size,
-        .data = &bv->buffer->data,
-        .indexBuffer = indices,
+        .bufferIndex = 0, // unused
         .offset = computeBindingOffset(indicesAccessor),
         .size = computeBindingSize(indicesAccessor), 
+        .data = &bv->buffer->data,
+        .vertexBuffer = nullptr,
+        .indexBuffer = indices,
+        .convertBytesToShorts = indicesAccessor->component_type == cgltf_component_type_r_8u,
+        .generateTrivialIndices = false
     });
 
     // We do not necessarily upload all glTF attribute buffers to the GPU. For example, we
     // do not upload tangent vectors in their source format. However the buffer count that
     // gets passed to the Builder should be equal to the glTF attribute count since unused buffers
     // might occur in a middle slot and we do not remap the slots.
-    // TODO: discard texture coordinates past the second set.
     VertexBuffer::Builder vbb;
     vbb.bufferCount(inPrim->attributes_count);
 
@@ -471,11 +470,14 @@ bool FAssetLoader::createPrimitive(const cgltf_primitive* inPrim, Primitive* out
         mResult->mBufferBindings.emplace_back(BufferBinding {
             .uri = bv->buffer->uri,
             .totalSize = (uint32_t) bv->buffer->size,
-            .data = &bv->buffer->data,
-            .vertexBuffer = vertices,
             .bufferIndex = slot,
             .offset = computeBindingOffset(inputAccessor),
-            .size = computeBindingSize(inputAccessor)
+            .size = computeBindingSize(inputAccessor),
+            .data = &bv->buffer->data,
+            .vertexBuffer = vertices,
+            .indexBuffer = nullptr,
+            .convertBytesToShorts = false,
+            .generateTrivialIndices = false
         });
     }
 

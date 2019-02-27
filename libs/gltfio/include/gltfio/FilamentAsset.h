@@ -36,9 +36,8 @@ struct TextureBinding;
 class Animator;
 
 /**
- * FilamentAsset owns a bundle of Filament objects that have been created by AssetLoader.
- *
- * For usage instructions, see the comment block for AssetLoader.
+ * FilamentAsset owns a bundle of Filament objects that have been created by AssetLoader and
+ * ResourceLoader. For usage instructions, see the comment block for AssetLoader.
  *
  * This class holds strong references to entities (renderables and transforms) that have been loaded
  * from a glTF asset, as well as strong references to VertexBuffer, IndexBuffer, MaterialInstance,
@@ -79,14 +78,17 @@ public:
     /** Gets the bounding box computed from the supplied min / max values in glTF accessors. */
     filament::Aabb getBoundingBox() const noexcept;
 
-    /** Creates the animation engine or returns it from the cache. */
-    Animator* createAnimator() noexcept;
+    /**
+     * Lazily creates the animation engine or returns it from the cache.
+     * The animator is owned by the asset and should not be manually deleted.
+    */
+    Animator* getAnimator() noexcept;
 
     /**
      * Reclaims CPU-side memory for URI strings, binding lists, and raw animation data.
      *
      * If using ResourceLoader, clients should call this only after calling loadResources.
-     * If using Animator, clients should call this only after calling createAnimator.
+     * If using Animator, clients should call this only after calling getAnimator.
      */
     void releaseSourceData() noexcept;
 
@@ -103,20 +105,13 @@ public:
 
 /**
  * BufferBinding is a read-only structure that tells clients how to load a source blob into a
- * VertexBuffer slot, IndexBuffer, orientation buffer, or animation buffer.
+ * VertexBuffer slot or IndexBuffer.
  *
  * Each binding instance corresponds to one of the following:
  *
  *  (a) One call to VertexBuffer::setBufferAt().
  *  (b) One call to IndexBuffer::setBuffer().
- *  (c) One memcpy into an orientation buffer.
- *  (d) One memcpy into an animation buffer.
  *
- * Orientation buffers are blobs of CPU-side memory that hold normals and possibly tangents. These
- * are consumed by the ResourceLoader class, which calls populateTangentQuaternions.
- *
- * Similarly, animation buffers are blobs of CPU memory that hold keyframe values. These are
- * consumed by the Animator class.
  */
 struct BufferBinding {
     const char* uri;    // unique identifier for the source blob
@@ -126,11 +121,12 @@ struct BufferBinding {
     uint32_t size;      // byte count used only for vertex and index buffers
     void** data;        // pointer to the resource data in the source asset (if loaded)
 
-    // Only one of the following destinations can be non-null.
+    // Only one of the following two destinations can be non-null.
     filament::VertexBuffer* vertexBuffer;
     filament::IndexBuffer* indexBuffer;
-    uint8_t* orientationBuffer;
-    uint8_t* animationBuffer;
+
+    bool convertBytesToShorts;   // the resource loader must convert the buffer from u8 to u16
+    bool generateTrivialIndices; // the resource loader must generate indices like: 0, 1, 2, ...
 };
 
 /** Describes a binding from a Texture to a MaterialInstance. */

@@ -107,6 +107,12 @@ static void importSkinningData(Skin& dstSkin, const cgltf_skin& srcSkin) {
     }
 }
 
+static void convertBytesToShorts(uint16_t* dst, const uint8_t* src, size_t count) {
+    for (size_t i = 0; i < count; ++i) {
+        dst[i] = src[i];
+    }
+}
+
 bool ResourceLoader::loadResources(FilamentAsset* asset) {
     FFilamentAsset* fasset = upcast(asset);
     mPool->addAsset(fasset);
@@ -147,14 +153,24 @@ bool ResourceLoader::loadResources(FilamentAsset* asset) {
     const BufferBinding* bindings = asset->getBufferBindings();
     for (size_t i = 0, n = asset->getBufferBindingCount(); i < n; ++i) {
         auto bb = bindings[i];
-        const uint8_t* ucdata = bb.offset + (const uint8_t*) *bb.data;
+        const uint8_t* data8 = bb.offset + (const uint8_t*) *bb.data;
         if (bb.vertexBuffer) {
             mPool->addPendingUpload();
-            VertexBuffer::BufferDescriptor bd(ucdata, bb.size, AssetPool::onLoadedResource, mPool);
+            VertexBuffer::BufferDescriptor bd(data8, bb.size, AssetPool::onLoadedResource, mPool);
             bb.vertexBuffer->setBufferAt(*mConfig.engine, bb.bufferIndex, std::move(bd));
+        } else if (bb.indexBuffer && bb.convertBytesToShorts) {
+            size_t size16 = bb.size * 2;
+            uint16_t* data16 = (uint16_t*) malloc(size16);
+            convertBytesToShorts(data16, data8, bb.size);
+            auto callback = (IndexBuffer::BufferDescriptor::Callback) free;
+            IndexBuffer::BufferDescriptor bd(data16, size16, callback);
+            bb.indexBuffer->setBuffer(*mConfig.engine, std::move(bd));
+        } else if (bb.indexBuffer && bb.generateTrivialIndices) {
+            slog.e << "NOT YET IMPLEMENTED." << io::endl;
+            return false;
         } else if (bb.indexBuffer) {
             mPool->addPendingUpload();
-            VertexBuffer::BufferDescriptor bd(ucdata, bb.size, AssetPool::onLoadedResource, mPool);
+            IndexBuffer::BufferDescriptor bd(data8, bb.size, AssetPool::onLoadedResource, mPool);
             bb.indexBuffer->setBuffer(*mConfig.engine, std::move(bd));
         } else {
             slog.e << "Malformed binding: " << bb.uri << io::endl;

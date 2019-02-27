@@ -100,6 +100,7 @@ inline bool getVertexAttrType(cgltf_attribute_type atype, filament::VertexAttrib
 
 inline bool getIndexType(cgltf_component_type ctype, filament::IndexBuffer::IndexType* itype) {
     switch (ctype) {
+        case cgltf_component_type_r_8u:
         case cgltf_component_type_r_16u:
             *itype = filament::IndexBuffer::IndexType::USHORT;
             return true;
