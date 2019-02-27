@@ -117,6 +117,10 @@ static std::string shaderFromKey(const MaterialKey& config, const UvMap& uvmap) 
         )SHADER";
     }
 
+    if (config.hasVertexColors) {
+        shader += "material.baseColor *= getColor();\n";
+    }
+
     if (!config.unlit) {
         shader += R"SHADER(
             material.roughness = materialParams.roughnessFactor;
@@ -213,6 +217,9 @@ static Material* createMaterial(Engine* engine, const MaterialKey& config, const
     builder.parameter(MaterialBuilder::UniformType::FLOAT4, "baseColorFactor");
     if (config.hasBaseColorTexture) {
         builder.parameter(MaterialBuilder::SamplerType::SAMPLER_2D, "baseColorMap");
+    }
+    if (config.hasVertexColors) {
+        builder.require(VertexAttribute::COLOR);
     }
 
     // METALLIC-ROUGHNESS

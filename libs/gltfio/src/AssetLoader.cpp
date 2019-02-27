@@ -68,9 +68,8 @@ struct Primitive {
 using Mesh = std::vector<Primitive>;
 using MeshCache = tsl::robin_map<const cgltf_mesh*, Mesh>;
 
-// Filament materials are cached by the MaterialGenerator, but material instances are cached here
-// in the loader object. glTF material definitions are 1:1 with filament::MaterialInstance.
-using MatInstanceCache = tsl::robin_map<const cgltf_material*, MaterialInstance*>;
+// Filament materials are cached by the MaterialGenerator, but material instances are cached here.
+using MatInstanceCache = tsl::robin_map<intptr_t, MaterialInstance*>;
 
 // Filament automatically infers the size of driver-level vertex buffers from the attribute data
 // (stride, count, offset) and clients are expected to avoid uploading data blobs that exceed this
@@ -126,10 +125,12 @@ struct FAssetLoader : public AssetLoader {
     void createEntity(const cgltf_node* node, Entity parent);
     void createRenderable(const cgltf_node* node, Entity entity);
     bool createPrimitive(const cgltf_primitive* inPrim, Primitive* outPrim, const UvMap& uvmap);
-    MaterialInstance* createMaterialInstance(const cgltf_material* inputMat, UvMap* uvmap);
+    MaterialInstance* createMaterialInstance(const cgltf_material* inputMat, UvMap* uvmap,
+            bool vertexColor);
     void addTextureBinding(MaterialInstance* materialInstance, const char* parameterName,
             const cgltf_texture* srcTexture, bool srgb);
     void importSkinningData(Skin& dstSkin, const cgltf_skin& srcSkin);
+    bool primitiveHasVertexColor(const cgltf_primitive* inPrim) const;
 
     bool mCastShadows = true;
     bool mReceiveShadows = true;
@@ -288,7 +289,8 @@ void FAssetLoader::createRenderable(const cgltf_node* node, Entity entity) {
 
         // Create a material instance for this primitive or fetch one from the cache.
         UvMap uvmap;
-        MaterialInstance* mi = createMaterialInstance(inputPrim->material, &uvmap);
+        bool hasVertexColor = primitiveHasVertexColor(inputPrim);
+        MaterialInstance* mi = createMaterialInstance(inputPrim->material, &uvmap, hasVertexColor);
         builder.material(index, mi);
 
         // Create a Filament VertexBuffer and IndexBuffer for this prim if we haven't already.
@@ -483,8 +485,9 @@ bool FAssetLoader::createPrimitive(const cgltf_primitive* inPrim, Primitive* out
 }
 
 MaterialInstance* FAssetLoader::createMaterialInstance(const cgltf_material* inputMat,
-        UvMap* uvmap) {
-    auto iter = mMatInstanceCache.find(inputMat);
+        UvMap* uvmap, bool vertexColor) {
+    intptr_t key = ((intptr_t) inputMat) ^ (vertexColor ? 1 : 0);
+    auto iter = mMatInstanceCache.find(key);
     if (iter != mMatInstanceCache.end()) {
         return iter->second;
     }
@@ -497,7 +500,7 @@ MaterialInstance* FAssetLoader::createMaterialInstance(const cgltf_material* inp
         Material* mat = mMaterials.getOrCreateMaterial(&matkey, uvmap);
         MaterialInstance* mi = mat->createInstance();
         mResult->mMaterialInstances.push_back(mi);
-        return mMatInstanceCache[nullptr] = mi;
+        return mMatInstanceCache[0] = mi;
     }
 
     bool has_pbr = inputMat->has_pbr_metallic_roughness;
@@ -506,7 +509,7 @@ MaterialInstance* FAssetLoader::createMaterialInstance(const cgltf_material* inp
     MaterialKey matkey {
         .doubleSided = (bool) inputMat->double_sided,
         .unlit = (bool) inputMat->unlit,
-        .hasVertexColors = false, // TODO
+        .hasVertexColors = vertexColor,
         .hasBaseColorTexture = has_pbr && pbr_config.base_color_texture.texture,
         .hasMetallicRoughnessTexture = has_pbr && pbr_config.metallic_roughness_texture.texture,
         .hasNormalTexture = inputMat->normal_texture.texture,
@@ -566,7 +569,7 @@ MaterialInstance* FAssetLoader::createMaterialInstance(const cgltf_material* inp
         addTextureBinding(mi, "emissiveMap", inputMat->emissive_texture.texture, true);
     }
 
-    return mMatInstanceCache[inputMat] = mi;
+    return mMatInstanceCache[key] = mi;
 }
 
 void FAssetLoader::addTextureBinding(MaterialInstance* materialInstance, const char* parameterName,
@@ -615,6 +618,16 @@ void FAssetLoader::importSkinningData(Skin& dstSkin, const cgltf_skin& srcSkin) 
     for (cgltf_size i = 0, len = srcSkin.joints_count; i < len; ++i) {
         dstSkin.joints[i] = nodeMap.at(srcSkin.joints[i]);
     }
+}
+
+bool FAssetLoader::primitiveHasVertexColor(const cgltf_primitive* inPrim) const {
+    for (int slot = 0; slot < inPrim->attributes_count; slot++) {
+        const cgltf_attribute& inputAttribute = inPrim->attributes[slot];
+        if (inputAttribute.type == cgltf_attribute_type_color) {
+            return true;
+        }
+    }
+    return false;
 }
 
 AssetLoader* AssetLoader::create(Engine* engine) {
