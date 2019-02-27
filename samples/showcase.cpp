@@ -225,6 +225,22 @@ int main(int argc, char** argv) {
             ImGui::SliderFloat("ibl", &app.iblIntensity, 0.0f, 50000.0f);
             ImGui::SliderAngle("ibl rotation", &app.iblRotation);
         }
+        if (ImGui::CollapsingHeader("Model")) {
+            
+            auto& tm = engine->getTransformManager();
+            auto& rm = engine->getRenderableManager();
+
+            auto rootEntity = app.asset->getRoot();
+            auto rootInstance = tm.getInstance(rootEntity);
+
+            // if (ImGui::TreeNode((void*) rootEntity.getId(), "Root")) {
+            //     ImGui::Text("blah blah");
+            //     ImGui::SameLine(); 
+            //     if (ImGui::SmallButton("button")) { };
+            //     ImGui::TreePop();
+            // }
+
+        }
         ImGui::End();
         auto ibl = FilamentApp::get().getIBL()->getIndirectLight();
         ibl->setIntensity(app.iblIntensity);

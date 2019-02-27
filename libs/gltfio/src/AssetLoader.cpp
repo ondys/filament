@@ -611,12 +611,10 @@ void FAssetLoader::importSkinningData(Skin& dstSkin, const cgltf_skin& srcSkin) 
     if (srcSkin.name) {
         dstSkin.name = srcSkin.name;
     }
-
-    // For each node reference, find its matching TransformManager instance.
     dstSkin.joints.resize(srcSkin.joints_count);
     const auto& nodeMap = mResult->mNodeMap;
     for (cgltf_size i = 0, len = srcSkin.joints_count; i < len; ++i) {
-        dstSkin.joints[i] = mTransformManager.getInstance(nodeMap.at(srcSkin.joints[i]));
+        dstSkin.joints[i] = nodeMap.at(srcSkin.joints[i]);
     }
 }
 

@@ -46,7 +46,7 @@ namespace details {
 struct Skin {
     std::string name;
     std::vector<filament::math::mat4f> inverseBindMatrices;
-    std::vector<filament::TransformManager::Instance> joints;
+    std::vector<utils::Entity> joints;
     std::vector<utils::Entity> targets;
 };
 

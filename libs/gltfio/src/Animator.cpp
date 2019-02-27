@@ -55,7 +55,7 @@ struct Sampler {
 
 struct Channel {
     const Sampler* sourceData;
-    TransformManager::Instance targetInstance;
+    utils::Entity targetEntity;
     enum { TRANSLATION, ROTATION, SCALE } transformType; // TODO: support morph targets
 };
 
@@ -227,7 +227,7 @@ Animator::Animator(FilamentAsset* publicAsset) {
             utils::Entity targetEntity = asset->mNodeMap[srcChannel.target_node];
             Channel& dstChannel = dstAnim.channels[j];
             dstChannel.sourceData = &dstAnim.samplers[srcChannel.sampler - srcSamplers];
-            dstChannel.targetInstance = transformManager.getInstance(targetEntity);
+            dstChannel.targetEntity = targetEntity;
             setTransformType(srcChannel, dstChannel);
         }
     }
@@ -253,7 +253,7 @@ void Animator::applyAnimation(size_t animationIndex, float time) const {
         int cindex = &channel - &anim.channels.front();
         int sindex = sampler - &anim.samplers.front();
 
-        TransformManager::Instance node = channel.targetInstance;
+        TransformManager::Instance node = mImpl->transformManager->getInstance(channel.targetEntity);
         const TimeValues& times = sampler->times;
 
         // Find the first keyframe after the given time, or the keyframe that matches it exactly.
@@ -287,7 +287,7 @@ void Animator::applyAnimation(size_t animationIndex, float time) const {
         size_t prevIndex = prevIter->second;
         size_t nextIndex = nextIter->second;
 
-        mat4f xform = mImpl->transformManager->getTransform(channel.targetInstance);
+        mat4f xform = mImpl->transformManager->getTransform(node);
         float3 scale;
         quatf rotation;
         float3 translation;
@@ -312,7 +312,7 @@ void Animator::applyAnimation(size_t animationIndex, float time) const {
         }
 
         xform = mat4f::compose(translation, rotation, scale);
-        mImpl->transformManager->setTransform(channel.targetInstance, xform);
+        mImpl->transformManager->setTransform(node, xform);
     }
 }
 
@@ -335,7 +335,8 @@ void Animator::updateBoneMatrices() {
                 inverseGlobalTransform = inverse(transformManager->getWorldTransform(xformable));
             }
             for (size_t boneIndex = 0; boneIndex < njoints; ++boneIndex) {
-                const auto& jointInstance = skin.joints[boneIndex];
+                const auto& joint = skin.joints[boneIndex];
+                TransformManager::Instance jointInstance = transformManager->getInstance(joint);
                 mat4f globalJointTransform = transformManager->getWorldTransform(jointInstance);
                 boneMatrices[boneIndex] =
                         inverseGlobalTransform *
