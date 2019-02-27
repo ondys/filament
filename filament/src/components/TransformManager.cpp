@@ -69,6 +69,28 @@ void FTransformManager::setParent(Instance i, Instance parent) noexcept {
     }
 }
 
+Entity FTransformManager::getParent(Instance i) const noexcept {
+    i = mManager[i].parent;
+    return mManager.getEntity(i);
+}
+
+size_t FTransformManager::getChildCount(Instance i) const noexcept {
+    size_t count = 0;
+    for (Instance ci = mManager[i].firstChild; ci; ci = mManager[ci].next, ++count);
+    return count;
+}
+
+size_t FTransformManager::getChildren(Instance i, utils::Entity* children, size_t count) const noexcept {
+    Instance ci = mManager[i].firstChild;
+    size_t retval = 0;
+    while (ci && retval < count) {
+        *children++ = mManager.getEntity(ci);
+        ci = mManager[ci].next;
+        ++retval;
+    }
+    return retval;
+}
+
 void FTransformManager::destroy(Entity e) noexcept {
     // update the reference of the element we're removing
     auto& manager = mManager;
@@ -390,6 +412,18 @@ const mat4f& TransformManager::getWorldTransform(Instance ci) const noexcept {
 
 void TransformManager::setParent(Instance i, Instance newParent) noexcept {
     upcast(this)->setParent(i, newParent);
+}
+
+utils::Entity TransformManager::getParent(Instance i) const noexcept {
+    return upcast(this)->getParent(i);
+}
+
+size_t TransformManager::getChildCount(Instance i) const noexcept {
+    return upcast(this)->getChildCount(i);
+}
+
+size_t TransformManager::getChildren(Instance i, utils::Entity* children, size_t count) const noexcept {
+    return upcast(this)->getChildren(i, children, count);
 }
 
 void TransformManager::openLocalTransformTransaction() noexcept {

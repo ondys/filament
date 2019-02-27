@@ -47,8 +47,8 @@ public:
     public:
         Builder();
         ~Builder() noexcept;
-        Builder(Builder&&) = default;
-        Builder& operator=(Builder&&) = default;
+        Builder(Builder&& that) { std::swap(mImpl, that.mImpl); }
+        Builder& operator=(Builder&& that) { std::swap(mImpl, that.mImpl); return *this; }
 
         /**
          * These two attributes are required. They are not passed into the constructor to force
@@ -81,6 +81,8 @@ public:
     SurfaceOrientation(const SurfaceOrientation&) = default;
     SurfaceOrientation& operator=(const SurfaceOrientation&) = default;
     ~SurfaceOrientation();
+    SurfaceOrientation(SurfaceOrientation&& that) { std::swap(mImpl, that.mImpl); }
+    SurfaceOrientation& operator=(SurfaceOrientation&& that) { std::swap(mImpl, that.mImpl); return *this; }
 
     /**
      * Returns the vertex count.
