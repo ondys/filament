@@ -113,6 +113,12 @@ static void convertBytesToShorts(uint16_t* dst, const uint8_t* src, size_t count
     }
 }
 
+static void generateTrivialIndices(uint32_t* dst, size_t numVertices) {
+    for (size_t i = 0; i < numVertices; ++i) {
+        dst[i] = i;
+    }
+}
+
 bool ResourceLoader::loadResources(FilamentAsset* asset) {
     FFilamentAsset* fasset = upcast(asset);
     mPool->addAsset(fasset);
@@ -153,28 +159,28 @@ bool ResourceLoader::loadResources(FilamentAsset* asset) {
     const BufferBinding* bindings = asset->getBufferBindings();
     for (size_t i = 0, n = asset->getBufferBindingCount(); i < n; ++i) {
         auto bb = bindings[i];
-        const uint8_t* data8 = bb.offset + (const uint8_t*) *bb.data;
+        const uint8_t* data8 = bb.data ? (bb.offset + (const uint8_t*) *bb.data) : nullptr;
         if (bb.vertexBuffer) {
             mPool->addPendingUpload();
             VertexBuffer::BufferDescriptor bd(data8, bb.size, AssetPool::onLoadedResource, mPool);
             bb.vertexBuffer->setBufferAt(*mConfig.engine, bb.bufferIndex, std::move(bd));
-        } else if (bb.indexBuffer && bb.convertBytesToShorts) {
+        } else if (bb.generateTrivialIndices) {
+            uint32_t* data32 = (uint32_t*) malloc(bb.size);
+            generateTrivialIndices(data32, bb.size / sizeof(uint32_t));
+            auto callback = (IndexBuffer::BufferDescriptor::Callback) free;
+            IndexBuffer::BufferDescriptor bd(data32, bb.size, callback);
+            bb.indexBuffer->setBuffer(*mConfig.engine, std::move(bd));
+        } else if (bb.convertBytesToShorts) {
             size_t size16 = bb.size * 2;
             uint16_t* data16 = (uint16_t*) malloc(size16);
             convertBytesToShorts(data16, data8, bb.size);
             auto callback = (IndexBuffer::BufferDescriptor::Callback) free;
             IndexBuffer::BufferDescriptor bd(data16, size16, callback);
             bb.indexBuffer->setBuffer(*mConfig.engine, std::move(bd));
-        } else if (bb.indexBuffer && bb.generateTrivialIndices) {
-            slog.e << "NOT YET IMPLEMENTED." << io::endl;
-            return false;
         } else if (bb.indexBuffer) {
             mPool->addPendingUpload();
             IndexBuffer::BufferDescriptor bd(data8, bb.size, AssetPool::onLoadedResource, mPool);
             bb.indexBuffer->setBuffer(*mConfig.engine, std::move(bd));
-        } else {
-            slog.e << "Malformed binding: " << bb.uri << io::endl;
-            return false;
         }
     }
 
@@ -286,8 +292,9 @@ void ResourceLoader::computeTangents(const FFilamentAsset* asset) const {
         }
 
         short4* quats = (short4*) malloc(sizeof(short4) * vertexCount);
-        auto& sob = geometry::SurfaceOrientation::Builder()
-            .vertexCount(vertexCount);
+
+        geometry::SurfaceOrientation::Builder sob;
+        sob.vertexCount(vertexCount);
 
         // Convert normals into packed floats.
         assert(normalsInfo->count == vertexCount);
@@ -325,9 +332,13 @@ void ResourceLoader::computeTangents(const FFilamentAsset* asset) const {
             sob.positions(fp32Positions.data());
         }
 
-        ui16Triangles.resize(prim.indices->count);
-        size_t triangleCount = prim.indices->count / 3, j = 0;
-        for (cgltf_size i = 0; i < triangleCount; ++i) {
+        if (!prim.indices) {
+            // TODO.  Also: support 32-bit indices and simply always use 32-bit indices here.
+            exit(1);
+        }
+        const size_t triangleCount = prim.indices->count / 3;
+        ui16Triangles.resize(triangleCount);
+        for (cgltf_size i = 0, j = 0; i < triangleCount; ++i) {
             ui16Triangles[i].x = cgltf_accessor_read_index(prim.indices, j++);
             ui16Triangles[i].y = cgltf_accessor_read_index(prim.indices, j++);
             ui16Triangles[i].z = cgltf_accessor_read_index(prim.indices, j++);

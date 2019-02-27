@@ -334,49 +334,49 @@ void FAssetLoader::createRenderable(const cgltf_node* node, Entity entity) {
 
 bool FAssetLoader::createPrimitive(const cgltf_primitive* inPrim, Primitive* outPrim,
         const UvMap& uvmap) {
+
+    // In glTF, each primitive may or may not have an index buffer. If a primitive does not have an
+    // index buffer, we ask the ResourceLoader to generate a trivial index buffer.
+    IndexBuffer* indices;
     const cgltf_accessor* indicesAccessor = inPrim->indices;
-    if (!indicesAccessor) {
-        // TODO: generate BufferBinding with generateTrivialIndices = true
-        slog.e << "Non-indexed geometry is not yet supported." << io::endl;
-        return false;
+    if (indicesAccessor) {
+        IndexBuffer::Builder ibb;
+        ibb.indexCount(indicesAccessor->count);
+        IndexBuffer::IndexType indexType;
+        if (!getIndexType(indicesAccessor->component_type, &indexType)) {
+            utils::slog.e << "Unrecognized index type." << utils::io::endl;
+            return false;
+        }
+        ibb.bufferType(indexType);
+        indices = ibb.build(*mEngine);
+        const cgltf_buffer_view* bv = indicesAccessor->buffer_view;
+        mResult->mBufferBindings.emplace_back(BufferBinding {
+            .uri = bv->buffer->uri,
+            .totalSize = uint32_t(bv->buffer->size),
+            .offset = computeBindingOffset(indicesAccessor),
+            .size = computeBindingSize(indicesAccessor),
+            .data = &bv->buffer->data,
+            .indexBuffer = indices,
+            .convertBytesToShorts = indicesAccessor->component_type == cgltf_component_type_r_8u,
+            .generateTrivialIndices = false
+        });
+    } else {
+        const cgltf_size vertexCount = inPrim->attributes[0].data->count;
+        indices = IndexBuffer::Builder()
+            .indexCount(vertexCount)
+            .bufferType(IndexBuffer::IndexType::UINT)
+            .build(*mEngine);
+        mResult->mBufferBindings.emplace_back(BufferBinding {
+            .indexBuffer = indices,
+            .size = uint32_t(vertexCount * sizeof(uint32_t)),
+            .generateTrivialIndices = true
+        });
     }
 
-    IndexBuffer::Builder ibb;
-    ibb.indexCount(indicesAccessor->count);
-
-    IndexBuffer::IndexType indexType;
-    if (!getIndexType(indicesAccessor->component_type, &indexType)) {
-        utils::slog.e << "Unrecognized index type." << utils::io::endl;
-        return false;
-    }
-    ibb.bufferType(indexType);
-
-    IndexBuffer* indices = ibb.build(*mEngine);
-
-    // TODO: support sparse accessors.
-    if (indicesAccessor->is_sparse) {
-        slog.e << "Sparse accessors not yet supported." << io::endl;
-        return false;
-    }
-
-    const cgltf_buffer_view* bv = indicesAccessor->buffer_view;
-    mResult->mBufferBindings.emplace_back(BufferBinding {
-        .uri = bv->buffer->uri,
-        .totalSize = (uint32_t) bv->buffer->size,
-        .bufferIndex = 0, // unused
-        .offset = computeBindingOffset(indicesAccessor),
-        .size = computeBindingSize(indicesAccessor), 
-        .data = &bv->buffer->data,
-        .vertexBuffer = nullptr,
-        .indexBuffer = indices,
-        .convertBytesToShorts = indicesAccessor->component_type == cgltf_component_type_r_8u,
-        .generateTrivialIndices = false
-    });
-
-    // We do not necessarily upload all glTF attribute buffers to the GPU. For example, we
-    // do not upload tangent vectors in their source format. However the buffer count that
-    // gets passed to the Builder should be equal to the glTF attribute count since unused buffers
-    // might occur in a middle slot and we do not remap the slots.
+    // We do not necessarily upload all glTF attribute buffers to the GPU. For example, we do not
+    // upload tangent vectors in their source format or more than two UV sets. However the buffer
+    // count that gets passed to the Builder should be equal to the glTF attribute count because we
+    // do not remap the slots.
     VertexBuffer::Builder vbb;
     vbb.bufferCount(inPrim->attributes_count);
 
