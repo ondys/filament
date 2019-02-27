@@ -63,7 +63,7 @@ class UTILS_PUBLIC Scene : public FilamentAPI {
 public:
 
     /**
-     * Sets the SkyBox,
+     * Sets the SkyBox.
      *
      * The Skybox is drawn last and covers all pixels not touched by geometry.
      *

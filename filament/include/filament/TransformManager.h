@@ -114,7 +114,7 @@ public:
     void setParent(Instance i, Instance newParent) noexcept;
 
     /**
-     * Returns the parent, if any, of a transform component.
+     * Returns the parent of a transform component, or the null entity if it is a root.
      * @param i The instance of the transform component to query.
      */
     utils::Entity getParent(Instance i) const noexcept;

@@ -71,7 +71,7 @@ void FTransformManager::setParent(Instance i, Instance parent) noexcept {
 
 Entity FTransformManager::getParent(Instance i) const noexcept {
     i = mManager[i].parent;
-    return mManager.getEntity(i);
+    return i ? mManager.getEntity(i) : Entity();
 }
 
 size_t FTransformManager::getChildCount(Instance i) const noexcept {
@@ -83,12 +83,12 @@ size_t FTransformManager::getChildCount(Instance i) const noexcept {
 size_t FTransformManager::getChildren(Instance i, utils::Entity* children,
         size_t count) const noexcept {
     Instance ci = mManager[i].firstChild;
-    size_t retval = 0;
-    while (ci && retval < count) {
-        children[retval++] = mManager.getEntity(ci);
+    size_t numWritten = 0;
+    while (ci && numWritten < count) {
+        children[numWritten++] = mManager.getEntity(ci);
         ci = mManager[ci].next;
     }
-    return retval;
+    return numWritten;
 }
 
 void FTransformManager::destroy(Entity e) noexcept {
