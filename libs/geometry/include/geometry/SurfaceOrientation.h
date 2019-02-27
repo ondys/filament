@@ -34,7 +34,7 @@ class SurfaceOrientation {
 public:
 
     /**
-     * Constructs an immutable surface orientation helper.
+     * The Builder is used to construct an immutable surface orientation helper.
      *
      * At a minimum, clients must supply a vertex count and normals buffer. They can supply data in
      * any of the following three combinations:
@@ -45,10 +45,10 @@ public:
      */
     class Builder {
     public:
-        Builder();
+        Builder() noexcept;
         ~Builder() noexcept;
-        Builder(Builder&& that) { std::swap(mImpl, that.mImpl); }
-        Builder& operator=(Builder&& that) { std::swap(mImpl, that.mImpl); return *this; }
+        Builder(Builder&& that) noexcept;
+        Builder& operator=(Builder&& that) noexcept;
 
         /**
          * These two attributes are required. They are not passed into the constructor to force
@@ -74,15 +74,13 @@ public:
 
     private:
         OrientationBuilderImpl* mImpl;
-        Builder(const Builder&);
-        Builder& operator=(const Builder&);
+        Builder(const Builder&) = delete;
+        Builder& operator=(const Builder&) = delete;
     };
 
-    SurfaceOrientation(const SurfaceOrientation&) = default;
-    SurfaceOrientation& operator=(const SurfaceOrientation&) = default;
-    ~SurfaceOrientation();
-    SurfaceOrientation(SurfaceOrientation&& that) { std::swap(mImpl, that.mImpl); }
-    SurfaceOrientation& operator=(SurfaceOrientation&& that) { std::swap(mImpl, that.mImpl); return *this; }
+    ~SurfaceOrientation() noexcept;
+    SurfaceOrientation(SurfaceOrientation&& that) noexcept;
+    SurfaceOrientation& operator=(SurfaceOrientation&& that) noexcept;
 
     /**
      * Returns the vertex count.
@@ -101,7 +99,9 @@ public:
     /** @} */
 
 private:
-    SurfaceOrientation(OrientationImpl*);
+    SurfaceOrientation(OrientationImpl*) noexcept;
+    SurfaceOrientation(const SurfaceOrientation&) = delete;
+    SurfaceOrientation& operator=(const SurfaceOrientation&) = delete;
     OrientationImpl* mImpl;
     friend struct OrientationBuilderImpl;
 };

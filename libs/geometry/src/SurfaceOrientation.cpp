@@ -52,9 +52,18 @@ struct OrientationImpl {
     vector<quatf> quaternions;
 };
 
-Builder::Builder() : mImpl(new OrientationBuilderImpl) {}
+Builder::Builder() noexcept : mImpl(new OrientationBuilderImpl) {}
 
 Builder::~Builder() noexcept { delete mImpl; }
+
+Builder::Builder(Builder&& that) noexcept {
+    std::swap(mImpl, that.mImpl);
+}
+
+Builder& Builder::operator=(Builder&& that) noexcept {
+    std::swap(mImpl, that.mImpl);
+    return *this;
+}
 
 Builder& Builder::vertexCount(size_t vertexCount) noexcept {
     mImpl->vertexCount = vertexCount;
@@ -91,13 +100,11 @@ Builder& Builder::triangleCount(size_t triangleCount) noexcept {
 }
 
 Builder& Builder::triangles(const uint3* triangles) noexcept {
-    ASSERT_PRECONDITION(mImpl->triangles16 == nullptr, "Triangles already supplied.");
     mImpl->triangles32 = triangles;
     return *this;
 }
 
 Builder& Builder::triangles(const ushort3* triangles) noexcept {
-    ASSERT_PRECONDITION(mImpl->triangles32 == nullptr, "Triangles already supplied.");
     mImpl->triangles16 = triangles;
     return *this;
 }
@@ -112,8 +119,10 @@ SurfaceOrientation Builder::build() {
         return mImpl->buildWithNormalsOnly();
     }
     bool hasTriangles = mImpl->triangles16 || mImpl->triangles32;
+    bool bothTypes = mImpl->triangles16 && mImpl->triangles32;
     ASSERT_PRECONDITION(hasTriangles && mImpl->positions,
             "When using UVs, positions and triangles are required.");
+    ASSERT_PRECONDITION(!bothTypes, "Choose 16 or 32-bit indices, not both.");
     ASSERT_PRECONDITION(mImpl->triangleCount > 0,
             "When using UVs, triangle count is required.");
     return mImpl->buildWithUvs();
@@ -230,9 +239,18 @@ SurfaceOrientation OrientationBuilderImpl::buildWithUvs() {
     return SurfaceOrientation(new OrientationImpl( { std::move(quats) } ));
 }
 
-SurfaceOrientation::SurfaceOrientation(OrientationImpl* impl) : mImpl(impl) {}
+SurfaceOrientation::SurfaceOrientation(OrientationImpl* impl) noexcept : mImpl(impl) {}
 
-SurfaceOrientation::~SurfaceOrientation() { delete mImpl; }
+SurfaceOrientation::~SurfaceOrientation() noexcept { delete mImpl; }
+
+SurfaceOrientation::SurfaceOrientation(SurfaceOrientation&& that) noexcept {
+    std::swap(mImpl, that.mImpl);
+}
+
+SurfaceOrientation& SurfaceOrientation::operator=(SurfaceOrientation&& that) noexcept {
+    std::swap(mImpl, that.mImpl);
+    return *this;
+}
 
 size_t SurfaceOrientation::getVertexCount() const noexcept {
     return mImpl->quaternions.size();
