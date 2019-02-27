@@ -515,14 +515,27 @@ MaterialInstance* FAssetLoader::createMaterialInstance(const cgltf_material* inp
         .hasNormalTexture = inputMat->normal_texture.texture,
         .hasOcclusionTexture = inputMat->occlusion_texture.texture,
         .hasEmissiveTexture = inputMat->emissive_texture.texture,
-        .alphaMode = AlphaMode::OPAQUE, // TODO
-        .alphaMaskThreshold = 0.5f, // TODO
+        .alphaMode = AlphaMode::OPAQUE,
+        .alphaMaskThreshold = 0.5f,
         .baseColorUV = (uint8_t) pbr_config.base_color_texture.texcoord,
         .metallicRoughnessUV = (uint8_t) pbr_config.metallic_roughness_texture.texcoord,
         .emissiveUV = (uint8_t) inputMat->emissive_texture.texcoord,
         .aoUV = (uint8_t) inputMat->occlusion_texture.texcoord,
         .normalUV = (uint8_t) inputMat->normal_texture.texcoord,
     };
+
+    switch (inputMat->alpha_mode) {
+        case cgltf_alpha_mode_opaque:
+            matkey.alphaMode = AlphaMode::OPAQUE;
+            break;
+        case cgltf_alpha_mode_mask:
+            matkey.alphaMode = AlphaMode::MASKED;
+            matkey.alphaMaskThreshold = inputMat->alpha_cutoff;
+            break;
+        case cgltf_alpha_mode_blend:
+            matkey.alphaMode = AlphaMode::TRANSPARENT;
+            break;
+    }
 
     if (inputMat->has_pbr_specular_glossiness) {
         slog.w << "pbrSpecularGlossiness textures are not supported." << io::endl;
