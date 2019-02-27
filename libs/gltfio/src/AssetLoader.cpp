@@ -312,13 +312,6 @@ void FAssetLoader::createRenderable(const cgltf_node* node, Entity entity) {
     float3 minpt = (worldTransform * float4(aabb.min, 1.0)).xyz;
     float3 maxpt = (worldTransform * float4(aabb.max, 1.0)).xyz;
 
-    slog.e << "\nentity min: " << aabb.min << io::endl;
-    slog.e << "entity max: " << aabb.max << io::endl;
-    slog.e << "world xform: " << worldTransform[0] << worldTransform[1]
-            << worldTransform[2] << worldTransform[3] << io::endl;
-    slog.e << "entity xformed min: " << minpt << io::endl;
-    slog.e << "entity xformed max: " << maxpt << io::endl;
-
     mResult->mBoundingBox.min = min(mResult->mBoundingBox.min, minpt);
     mResult->mBoundingBox.max = max(mResult->mBoundingBox.max, maxpt);
 
@@ -420,6 +413,8 @@ bool FAssetLoader::createPrimitive(const cgltf_primitive* inPrim, Primitive* out
                     semantic = VertexAttribute::UV1;
                     break;
                 case UNUSED:
+                    // It is perfectly acceptable to drop unused texture coordinate sets. In fact
+                    // this can occur quite frequently, e.g. if the material has attached textures.
                     continue;
             }
         }
@@ -465,6 +460,10 @@ bool FAssetLoader::createPrimitive(const cgltf_primitive* inPrim, Primitive* out
         const cgltf_buffer_view* bv = inputAccessor->buffer_view;
         if (inputAttribute.type == cgltf_attribute_type_normal ||
                 inputAttribute.type == cgltf_attribute_type_tangent) {
+            continue;
+        }
+        if (inputAttribute.type == cgltf_attribute_type_texcoord &&
+                uvmap[inputAttribute.index] == UNUSED) {
             continue;
         }
         mResult->mBufferBindings.emplace_back(BufferBinding {

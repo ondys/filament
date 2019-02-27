@@ -80,13 +80,13 @@ size_t FTransformManager::getChildCount(Instance i) const noexcept {
     return count;
 }
 
-size_t FTransformManager::getChildren(Instance i, utils::Entity* children, size_t count) const noexcept {
+size_t FTransformManager::getChildren(Instance i, utils::Entity* children,
+        size_t count) const noexcept {
     Instance ci = mManager[i].firstChild;
     size_t retval = 0;
     while (ci && retval < count) {
-        *children++ = mManager.getEntity(ci);
+        children[retval++] = mManager.getEntity(ci);
         ci = mManager[ci].next;
-        ++retval;
     }
     return retval;
 }
@@ -422,7 +422,8 @@ size_t TransformManager::getChildCount(Instance i) const noexcept {
     return upcast(this)->getChildCount(i);
 }
 
-size_t TransformManager::getChildren(Instance i, utils::Entity* children, size_t count) const noexcept {
+size_t TransformManager::getChildren(Instance i, utils::Entity* children,
+        size_t count) const noexcept {
     return upcast(this)->getChildren(i, children, count);
 }
 

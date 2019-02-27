@@ -39,7 +39,9 @@
 #include <imgui.h>
 
 #include <fstream>
+#include <functional>
 #include <iostream>
+#include <vector>
 
 #include "generated/resources/resources.h"
 #include "generated/resources/textures.h"
@@ -54,6 +56,7 @@ using namespace utils;
 
 struct App {
     Config config;
+    Scene* scene;
     AssetLoader* loader;
     FilamentAsset* asset;
     Animator* animator;
@@ -149,6 +152,7 @@ int main(int argc, char** argv) {
 
     auto setup = [&app, filename](Engine* engine, View* view, Scene* scene) {
         app.loader = AssetLoader::create(engine);
+        app.scene = scene;
         if (filename.isEmpty()) {
             return;
         }
@@ -176,8 +180,6 @@ int main(int argc, char** argv) {
         buffer.shrink_to_fit();
 
         // Compute the scale required to fit the model's bounding box into [-1, +1]
-        std::cout << "\nAsset min: " << app.asset->getBoundingBox().min << std::endl;
-        std::cout << "Asset max: " << app.asset->getBoundingBox().max << std::endl << std::endl;
         auto minpt = app.asset->getBoundingBox().min;
         auto maxpt = app.asset->getBoundingBox().max;
         float maxExtent = 0;
@@ -217,29 +219,56 @@ int main(int argc, char** argv) {
     };
 
     auto gui = [&app](filament::Engine* engine, filament::View* view) {
+
+        auto& tm = engine->getTransformManager();
+        auto& rm = engine->getRenderableManager();
+
+        // Declare a std::function for tree nodes, it's an easy way to make a recursive lambda.
+        std::function<void(utils::Entity)> treeNode;
+
+        auto renderableTreeItem = [&app, &rm](utils::Entity entity) {
+            auto instance = rm.getInstance(entity);
+            ImGui::Text("%zu prims", rm.getPrimitiveCount(instance));
+            bool rvis = app.scene->hasEntity(entity);
+            ImGui::Checkbox("visible", &rvis);
+            if (rvis) {
+                app.scene->addEntity(entity);
+            } else {
+                app.scene->remove(entity);
+            }
+        };
+
+        treeNode = [&](utils::Entity entity) {
+            auto tinstance = tm.getInstance(entity);
+            auto rinstance = rm.getInstance(entity);
+            intptr_t treeNodeId = 1 + entity.getId();
+            const char* label = rinstance ? "Mesh" : "Node";
+            ImGuiTreeNodeFlags flags = rinstance ? 0 : ImGuiTreeNodeFlags_DefaultOpen;
+            std::vector<Entity> children(tm.getChildCount(tinstance));
+            if (ImGui::TreeNodeEx((const void*) treeNodeId, flags, "%s", label)) {
+                if (rinstance) {
+                    renderableTreeItem(entity);
+                }
+                tm.getChildren(tinstance, children.data(), children.size());
+                for (auto ce : children) {
+                    treeNode(ce);
+                }
+                ImGui::TreePop();
+            }
+        };
+
+        // Disable rounding and draw a fixed-width ImGui window that looks like a sidebar.
         ImGui::GetStyle().WindowRounding = 0;
         ImGui::SetNextWindowPos(ImVec2(0, 0));
         ImGui::SetNextWindowSize(ImVec2(SIDEBAR_WIDTH, ImGui::GetIO().DisplaySize.y));
+
         ImGui::Begin("Filament", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize);
         if (ImGui::CollapsingHeader("Light")) {
             ImGui::SliderFloat("ibl", &app.iblIntensity, 0.0f, 50000.0f);
             ImGui::SliderAngle("ibl rotation", &app.iblRotation);
         }
-        if (ImGui::CollapsingHeader("Model")) {
-            
-            auto& tm = engine->getTransformManager();
-            auto& rm = engine->getRenderableManager();
-
-            auto rootEntity = app.asset->getRoot();
-            auto rootInstance = tm.getInstance(rootEntity);
-
-            // if (ImGui::TreeNode((void*) rootEntity.getId(), "Root")) {
-            //     ImGui::Text("blah blah");
-            //     ImGui::SameLine(); 
-            //     if (ImGui::SmallButton("button")) { };
-            //     ImGui::TreePop();
-            // }
-
+        if (ImGui::CollapsingHeader("Model", ImGuiTreeNodeFlags_DefaultOpen)) {
+            treeNode(app.asset->getRoot());
         }
         ImGui::End();
         auto ibl = FilamentApp::get().getIBL()->getIndirectLight();
